@@ -7,7 +7,7 @@ from tqdm import tqdm
 from sklearn.model_selection import train_test_split
 
 def pad_tile(tile, tile_size):
-    if tile.ndim == 2:  # For masks (single-channel)
+    if tile.ndim == 2: 
         padded_tile = np.zeros((tile_size, tile_size), dtype=tile.dtype)
         padded_tile[:tile.shape[0], :tile.shape[1]] = tile
     else:  
@@ -49,7 +49,7 @@ def save_mask(mask, output_path):
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     if mask.size == 0:
         print(f"Warning: Mask with zero dimensions, creating empty mask at {output_path}")
-        mask = np.zeros((256, 256), dtype=mask.dtype)  # Replace with empty mask if zero dimensions
+        mask = np.zeros((256, 256), dtype=mask.dtype)  
     with rasterio.open(
         output_path,
         'w',
@@ -72,12 +72,14 @@ def tile_image_and_mask(image_path, mask_path, tile_size, output_dir, csv_data):
         return
 
     image_height, image_width = image.shape[:2]
+    original_image_id = os.path.splitext(os.path.basename(image_path))[0]
+    
     for i in range(0, image_height, tile_size):
         for j in range(0, image_width, tile_size):
             tile, tile_mask, water_label, water_coverage = process_tile(image, mask, i, j, tile_size)
             
-            tile_filename = f"tile_{os.path.splitext(os.path.basename(image_path))[0]}_{i}_{j}.tif"
-            mask_filename = f"mask_{os.path.splitext(os.path.basename(mask_path))[0]}_{i}_{j}.tif"
+            tile_filename = f"tile_{original_image_id}_{i}_{j}.tif"
+            mask_filename = f"mask_{original_image_id}_{i}_{j}.tif"
             tile_output_path = os.path.join(output_dir, "images", tile_filename)
             mask_output_path = os.path.join(output_dir, "masks", mask_filename)
             
@@ -91,14 +93,15 @@ def tile_image_and_mask(image_path, mask_path, tile_size, output_dir, csv_data):
             csv_data.append({
                 "image_path": tile_output_path,
                 "mask_path": mask_output_path,
-                "original_image": os.path.basename(image_path),
+                "original_image_id": original_image_id,
+                "original_image_path": image_path,
                 "tile_x": i,
                 "tile_y": j,
                 "water_label": water_label,
                 "water_coverage": water_coverage
             })
 
-def create_dataset(image_dir, mask_dir, output_dir, tile_size=256):
+def create_dataset(image_dir, mask_dir, output_dir, tile_size=256, test_size=0.2):
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(os.path.join(output_dir, "images"), exist_ok=True)
     os.makedirs(os.path.join(output_dir, "masks"), exist_ok=True)
@@ -114,13 +117,24 @@ def create_dataset(image_dir, mask_dir, output_dir, tile_size=256):
         tile_image_and_mask(image_file, mask_file, tile_size, output_dir, csv_data)
     
     df = pd.DataFrame(csv_data)
-    csv_path = os.path.join(output_dir, "dataset.csv")
-    df.to_csv(csv_path, index=False)
-    print(f"CSV dataset created at {csv_path}")
+    
+    dataset_csv_path = os.path.join(output_dir, "dataset.csv")
+    df.to_csv(dataset_csv_path, index=False)
+    
+    train_df, test_df = train_test_split(df, test_size=test_size, random_state=42)
+    
+    train_csv_path = os.path.join(output_dir, "train_dataset.csv")
+    test_csv_path = os.path.join(output_dir, "test_dataset.csv")
+    train_df.to_csv(train_csv_path, index=False)
+    test_df.to_csv(test_csv_path, index=False)
+    
+    print(f"Full dataset created at {dataset_csv_path}")
+    print(f"Train and test datasets created at {train_csv_path} and {test_csv_path}")
 
-image_dir = "train_dataset_skoltech_train/train/images"
-mask_dir = "train_dataset_skoltech_train/train/masks"
-output_dir = "data_work_ds_and_cut/processed_data"
+
+image_dir = "data_work/data_work/train_dataset_skoltech_train/train/images"
+mask_dir = "data_work/data_work/train_dataset_skoltech_train/train/masks"
+output_dir = "data_work/data_work/data_work_ds_and_cut/processed_data"
 tile_size = 256
 
 create_dataset(image_dir, mask_dir, output_dir, tile_size)
