@@ -1,3 +1,7 @@
 
 *.tif
 *.npy
+*.pt
+1st_model.py
+output/training_outputs/metrics.json
+output/training_outputs/prediction_example.png
